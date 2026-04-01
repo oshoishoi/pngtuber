@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNGTuber Engine - Step 6 (Fixed & Centered)</title>
+    <title>PNGTuber Engine - Step 7 (IndexedDB Save)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #121212; color: #e0e0e0; overflow: hidden; display: flex; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
@@ -39,7 +39,7 @@
         <header class="flex justify-between items-center">
             <div>
                 <h1 class="text-xl font-bold text-white flex items-center gap-2">PNGTuber Engine</h1>
-                <p class="text-[10px] text-gray-500">v0.6 - Fixed & Centered</p>
+                <p class="text-[10px] text-gray-500">v0.7 - Browser Storage Support</p>
             </div>
             <button id="hide-panel-btn" class="text-gray-500 hover:text-white transition">CLOSE</button>
         </header>
@@ -67,12 +67,14 @@
 
         <section class="space-y-3 border-t border-gray-800 pt-4">
             <h2 class="text-sm font-semibold text-gray-300">画像設定 (<span id="activeSetLabel" class="text-blue-400">Set 1</span>)</h2>
+            <p class="text-[9px] text-gray-500 mt-[-8px]">※画像はブラウザに自動保存されます</p>
             <div class="grid grid-cols-2 gap-2">
                 <label id="labelIdle" class="file-input-label"><span>Idle</span><input type="file" id="imgIdle" accept="image/*" class="hidden"></label>
                 <label id="labelBlink" class="file-input-label"><span>Blink</span><input type="file" id="imgBlink" accept="image/*" class="hidden"></label>
                 <label id="labelTalk" class="file-input-label"><span>Talk</span><input type="file" id="imgTalk" accept="image/*" class="hidden"></label>
                 <label id="labelTalkBlink" class="file-input-label"><span>T-Blink</span><input type="file" id="imgTalkBlink" accept="image/*" class="hidden"></label>
             </div>
+            <button id="clearAllImages" class="w-full text-[10px] text-red-500 hover:text-red-400 transition">全画像をストレージから削除</button>
         </section>
 
         <section class="space-y-4 border-t border-gray-800 pt-4 text-[10px]">
@@ -88,11 +90,58 @@
 
         <footer class="mt-auto pt-4 text-center border-t border-gray-800 space-y-2">
             <button id="saveSettings" class="text-xs text-blue-400 hover:underline">設定を保存</button>
-            <p class="text-[9px] text-gray-600 italic">Drag character to move it</p>
+            <p class="text-[9px] text-gray-600 italic">Images are saved in IndexedDB</p>
         </footer>
     </div>
 
     <script>
+        // --- IndexedDB Logic ---
+        const DB_NAME = 'PNGTuberDB';
+        const DB_VERSION = 1;
+        const STORE_NAME = 'images';
+
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) {
+                        db.createObjectStore(STORE_NAME);
+                    }
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function saveImage(key, blob) {
+            const db = await initDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                tx.objectStore(STORE_NAME).put(blob, key);
+                tx.oncomplete = () => resolve();
+                tx.onerror = () => reject(tx.error);
+            });
+        }
+
+        async function getImage(key) {
+            const db = await initDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const request = tx.objectStore(STORE_NAME).get(key);
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => reject(request.error);
+            });
+        }
+
+        async function clearAllData() {
+            const db = await initDB();
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            tx.objectStore(STORE_NAME).clear();
+            return new Promise(r => tx.oncomplete = r);
+        }
+
+        // --- App Logic ---
         const canvas = document.getElementById('mainCanvas');
         const ctx = canvas.getContext('2d');
         const previewContainer = document.getElementById('preview-container');
@@ -108,6 +157,7 @@
             threshMarker: document.getElementById('threshold-marker'),
             bgColorPicker: document.getElementById('bgColorPicker'),
             saveBtn: document.getElementById('saveSettings'),
+            clearBtn: document.getElementById('clearAllImages'),
             uiToggleBtn: document.getElementById('ui-toggle-btn'),
             hidePanelBtn: document.getElementById('hide-panel-btn'),
             set1Btn: document.getElementById('set1Btn'),
@@ -120,19 +170,12 @@
         let isRunning = false, isUIVisible = true;
         let currentSetId = 1;
         let isTalking = false, isBlinking = false, blinkTimer = 0;
-        
-        // 物理・アニメーションパラメータ
-        let smoothVolume = 0;
-        let jumpY = 0;
-        
-        // キャラクターの座標初期値（キャンバスの中央付近に調整）
-        let charX = 500; 
-        let charY = 700; // 足元が中央より少し下にくるように配置
-        let isDragging = false;
+        let smoothVolume = 0, jumpY = 0;
+        let charX = 500, charY = 700, isDragging = false;
 
         const imageSets = { 1: {}, 2: {} };
 
-        // 1. ドラッグ移動の実装
+        // 1. ドラッグ移動
         previewContainer.addEventListener('mousedown', (e) => { isDragging = true; });
         window.addEventListener('mousemove', (e) => {
             if (isDragging) {
@@ -145,7 +188,7 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
 
-        // 2. セット切り替え・UI管理
+        // 2. セット管理
         function switchSet(id) {
             currentSetId = id;
             elements.set1Btn.className = `set-tab ${id === 1 ? 'active' : 'inactive'}`;
@@ -172,10 +215,12 @@
         }
         elements.uiToggleBtn.addEventListener('click', toggleUI);
         elements.hidePanelBtn.addEventListener('click', toggleUI);
+
         window.addEventListener('keydown', (e) => {
-            if (e.key.toLowerCase() === 'h' || e.key === 'Escape') toggleUI();
-            if (e.key === '1') switchSet(1);
-            if (e.key === '2') switchSet(2);
+            const key = e.key.toLowerCase();
+            if (key === 'h' || e.key === 'Escape') toggleUI();
+            if (key === '1') switchSet(1);
+            if (key === '2') switchSet(2);
         });
 
         // 3. 音声処理
@@ -198,7 +243,6 @@
             analyser.getByteFrequencyData(dataArray);
             let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
             let rawVol = Math.min(100, (sum / dataArray.length) * 1.5);
-            
             smoothVolume = smoothVolume * 0.85 + rawVol * 0.15;
             
             elements.volDisplay.innerText = Math.floor(rawVol);
@@ -222,7 +266,6 @@
         // 4. 描画
         function drawCharacter() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
             const currentImages = imageSets[currentSetId];
             let activeImage = isTalking ? (isBlinking ? (currentImages.talkblink || currentImages.talk) : currentImages.talk) : (isBlinking ? currentImages.blink : currentImages.idle);
 
@@ -243,51 +286,66 @@
             ctx.restore();
         }
 
-        // デフォルトキャラ: SDオタク1
         function drawSDOtaku1(x, y, talk, blink) {
             ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
-            
-            ctx.fillStyle = '#000'; ctx.fillRect(x - 50, y - 40, 100, 40); // スラックス
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 55, y - 100, 110, 60); ctx.fill(); ctx.stroke(); // Tシャツ
-            
-            ctx.beginPath(); ctx.arc(x, y - 200, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // 頭部
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 103, Math.PI, 0); ctx.lineTo(x + 103, y - 180); ctx.lineTo(x - 103, y - 180); ctx.fill(); // 髪
-            
-            if (blink) { 
-                ctx.beginPath(); ctx.moveTo(x - 45, y - 210); ctx.lineTo(x - 15, y - 210); ctx.moveTo(x + 15, y - 210); ctx.lineTo(x + 45, y - 210); ctx.stroke();
-            } else { 
-                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - 30, y - 220, 8, 0, Math.PI * 2); ctx.arc(x + 30, y - 220, 8, 0, Math.PI * 2); ctx.fill(); 
-            }
-            
-            if (talk) { 
-                ctx.beginPath(); ctx.moveTo(x - 30, y - 180); ctx.quadraticCurveTo(x, y - 120, x + 30, y - 180); ctx.closePath(); ctx.stroke(); 
-            } else { 
-                ctx.beginPath(); ctx.moveTo(x - 15, y - 170); ctx.lineTo(x + 15, y - 170); ctx.stroke(); 
-            }
+            ctx.fillStyle = '#000'; ctx.fillRect(x - 50, y - 40, 100, 40); // Slacks
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 55, y - 100, 110, 60); ctx.fill(); ctx.stroke(); // T-shirt
+            ctx.beginPath(); ctx.arc(x, y - 200, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // Head
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 103, Math.PI, 0); ctx.lineTo(x + 103, y - 180); ctx.lineTo(x - 103, y - 180); ctx.fill(); // Hair
+            if (blink) { ctx.beginPath(); ctx.moveTo(x - 45, y - 210); ctx.lineTo(x - 15, y - 210); ctx.moveTo(x + 15, y - 210); ctx.lineTo(x + 45, y - 210); ctx.stroke(); } 
+            else { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - 30, y - 220, 8, 0, Math.PI * 2); ctx.arc(x + 30, y - 220, 8, 0, Math.PI * 2); ctx.fill(); }
+            if (talk) { ctx.beginPath(); ctx.moveTo(x - 30, y - 180); ctx.quadraticCurveTo(x, y - 120, x + 30, y - 180); ctx.closePath(); ctx.stroke(); } 
+            else { ctx.beginPath(); ctx.moveTo(x - 15, y - 170); ctx.lineTo(x + 15, y - 170); ctx.stroke(); }
         }
 
-        // ファイル処理
+        // 5. 画像保存・読み込み処理
+        async function loadAllImages() {
+            for (let setIdx = 1; setIdx <= 2; setIdx++) {
+                for (const key of ['idle', 'blink', 'talk', 'talkblink']) {
+                    const blob = await getImage(`set${setIdx}_${key}`);
+                    if (blob) {
+                        const img = new Image();
+                        img.src = URL.createObjectURL(blob);
+                        await new Promise(r => img.onload = r);
+                        imageSets[setIdx][key] = img;
+                    }
+                }
+            }
+            updateSlotUI();
+        }
+
         ['Idle', 'Blink', 'Talk', 'TalkBlink'].forEach(k => {
             const input = document.getElementById('img' + k);
-            if (input) {
-                input.addEventListener('change', (e) => {
-                    const file = e.target.files[0];
-                    if (file) {
-                        const img = new Image(); img.src = URL.createObjectURL(file);
-                        img.onload = () => { imageSets[currentSetId][k.toLowerCase()] = img; updateSlotUI(); };
-                    }
-                });
+            input.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    // IndexedDBへ保存
+                    await saveImage(`set${currentSetId}_${k.toLowerCase()}`, file);
+                    // 画面へ反映
+                    const img = new Image();
+                    img.src = URL.createObjectURL(file);
+                    img.onload = () => { imageSets[currentSetId][k.toLowerCase()] = img; updateSlotUI(); };
+                }
+            });
+        });
+
+        elements.clearBtn.addEventListener('click', async () => {
+            if (confirm("ブラウザに保存されているすべての画像を削除しますか？")) {
+                await clearAllData();
+                location.reload();
             }
         });
 
-        function animate() { updateState(); drawCharacter(); requestAnimationFrame(animate); }
+        // 6. 初期化
         window.setBg = (c) => previewContainer.style.background = (c === 'transparent') ? '' : c;
         elements.bgColorPicker.addEventListener('input', (e) => setBg(e.target.value));
         elements.startBtn.addEventListener('click', () => { if (!audioContext) initAudio(); });
 
-        window.onload = () => {
-            // 保存データの読み込み
-            const saved = localStorage.getItem('pngtuber_v6_settings');
+        window.onload = async () => {
+            // ストレージから画像を読み込む
+            await loadAllImages();
+
+            const saved = localStorage.getItem('pngtuber_v7_settings');
             if(saved) {
                 try {
                     const s = JSON.parse(saved);
@@ -298,21 +356,13 @@
                 } catch(e) {}
             }
 
-            // ラベル同期の修正（IDの不一致を解決）
-            const labelMap = {
-                'sensitivity': 'sensVal',
-                'threshold': 'threshVal',
-                'jumpStrength': 'jumpVal'
-            };
-
+            const labelMap = { 'sensitivity': 'sensVal', 'threshold': 'threshVal', 'jumpStrength': 'jumpVal' };
             Object.keys(labelMap).forEach(key => {
                 const input = document.getElementById(key);
                 const label = document.getElementById(labelMap[key]);
                 if (input && label) {
-                    // 初期値反映
                     label.innerText = input.value;
                     if(key === 'threshold') elements.threshMarker.style.left = input.value + '%';
-
                     input.addEventListener('input', () => {
                         label.innerText = input.value;
                         if(key === 'threshold') elements.threshMarker.style.left = input.value + '%';
@@ -322,11 +372,11 @@
         };
 
         elements.saveBtn.addEventListener('click', () => {
-            localStorage.setItem('pngtuber_v6_settings', JSON.stringify({
+            localStorage.setItem('pngtuber_v7_settings', JSON.stringify({
                 sens: elements.sensitivityInput.value, thresh: elements.thresholdInput.value,
                 jump: elements.jumpStrengthInput.value, bg: previewContainer.style.background
             }));
-            alert("保存しました");
+            alert("設定を保存しました");
         });
     </script>
 </body>
