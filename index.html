@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNGTuber Engine - Step 7 (Fixed Audio)</title>
+    <title>PNGTuber Engine - Step 7 (Robust Audio)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #121212; color: #e0e0e0; overflow: hidden; display: flex; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
@@ -39,7 +39,7 @@
         <header class="flex justify-between items-center">
             <div>
                 <h1 class="text-xl font-bold text-white flex items-center gap-2">PNGTuber Engine</h1>
-                <p class="text-[10px] text-gray-500">v0.7.1 - Audio Fix</p>
+                <p class="text-[10px] text-gray-500">v0.7.2 - Re-auth Fix</p>
             </div>
             <button id="hide-panel-btn" class="text-gray-500 hover:text-white transition">CLOSE</button>
         </header>
@@ -106,9 +106,7 @@
                 const request = indexedDB.open(DB_NAME, DB_VERSION);
                 request.onupgradeneeded = (e) => {
                     const db = e.target.result;
-                    if (!db.objectStoreNames.contains(STORE_NAME)) {
-                        db.createObjectStore(STORE_NAME);
-                    }
+                    if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
                 };
                 request.onsuccess = (e) => resolve(e.target.result);
                 request.onerror = (e) => reject(e.target.error);
@@ -173,11 +171,12 @@
         let isTalking = false, isBlinking = false, blinkTimer = 0;
         let smoothVolume = 0, jumpY = 0;
         let charX = 500, charY = 700, isDragging = false;
+        let animationFrameId = null; // 多重ループ防止用
 
         const imageSets = { 1: {}, 2: {} };
 
         // ドラッグ移動
-        previewContainer.addEventListener('mousedown', (e) => { isDragging = true; });
+        previewContainer.addEventListener('mousedown', () => { isDragging = true; });
         window.addEventListener('mousemove', (e) => {
             if (isDragging) {
                 const rect = canvas.getBoundingClientRect();
@@ -203,9 +202,7 @@
         function updateSlotUI() {
             ['Idle', 'Blink', 'Talk', 'TalkBlink'].forEach(k => {
                 const el = document.getElementById('label' + k);
-                if (el) {
-                    imageSets[currentSetId][k.toLowerCase()] ? el.classList.add('has-image') : el.classList.remove('has-image');
-                }
+                if (el) imageSets[currentSetId][k.toLowerCase()] ? el.classList.add('has-image') : el.classList.remove('has-image');
             });
         }
 
@@ -224,42 +221,45 @@
             if (key === '2') switchSet(2);
         });
 
-        // --- 音声処理の修正 ---
+        // --- 音声処理の改善（権限再取得に対応） ---
         async function initAudio() {
-            // すでにコンテキストがある場合はレジュームを試みる
-            if (audioContext) {
-                if (audioContext.state === 'suspended') {
-                    await audioContext.resume();
-                }
-                return;
-            }
-
             try {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                // 新しいコンテキストの作成、または既存のレジューム
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                }
                 
-                // ブラウザの制約により、ここでもresumeが必要な場合がある
                 if (audioContext.state === 'suspended') {
                     await audioContext.resume();
                 }
 
+                // 権限が戻ったあとの最新のストリームを要求
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const source = audioContext.createMediaStreamSource(stream);
                 
-                analyser = audioContext.createAnalyser(); 
-                analyser.fftSize = 256;
+                if (!analyser) {
+                    analyser = audioContext.createAnalyser(); 
+                    analyser.fftSize = 256;
+                }
+                
+                // 新しいソースを接続（古いものはGCされる）
                 source.connect(analyser);
-                
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
-                isRunning = true; 
                 
+                isRunning = true; 
                 elements.startBtn.innerText = "ON AIR";
                 elements.startBtn.classList.replace('bg-blue-600', 'bg-green-600');
                 
-                // ループ開始
-                animate();
+                // ループがまだ動いていない場合のみ開始
+                if (!animationFrameId) {
+                    animate();
+                }
             } catch (err) { 
-                console.error("マイクの取得に失敗:", err);
-                alert("マイク許可が必要です。ブラウザのアドレスバー横の鍵アイコンからマイクが許可されているか確認してください。"); 
+                console.error("マイク接続失敗:", err);
+                isRunning = false;
+                elements.startBtn.innerText = "マイクを開始";
+                elements.startBtn.classList.replace('bg-green-600', 'bg-blue-600');
+                alert("マイクへのアクセスができません。ブラウザの設定でマイクを許可し、ページを更新してから再度ボタンを押してください。"); 
             }
         }
 
@@ -270,20 +270,15 @@
             let sum = 0; 
             for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
             
-            // 0-100の範囲でボリュームを計算
             let rawVol = Math.min(100, (sum / dataArray.length) * 1.5);
-            
-            // なめらかに数値を動かす
             smoothVolume = smoothVolume * 0.85 + rawVol * 0.15;
             
-            // UI更新
             elements.volDisplay.innerText = Math.floor(rawVol);
             elements.micMeter.style.width = rawVol + '%';
             
             const threshold = parseFloat(elements.thresholdInput.value);
             elements.micMeter.style.backgroundColor = rawVol > threshold ? '#10b981' : '#3b82f6';
 
-            // 口パク判定
             isTalking = smoothVolume > threshold;
 
             if (isTalking) {
@@ -297,7 +292,6 @@
             if (blinkTimer <= 0) { isBlinking = !isBlinking; blinkTimer = isBlinking ? 8 : (Math.random() * 250 + 120); }
         }
 
-        // 描画
         function drawCharacter() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const currentImages = imageSets[currentSetId];
@@ -332,7 +326,6 @@
             else { ctx.beginPath(); ctx.moveTo(x - 15, y - 170); ctx.lineTo(x + 15, y - 170); ctx.stroke(); }
         }
 
-        // 画像保存・読み込み
         async function loadAllImages() {
             for (let setIdx = 1; setIdx <= 2; setIdx++) {
                 for (const key of ['idle', 'blink', 'talk', 'talkblink']) {
@@ -368,11 +361,8 @@
             }
         });
 
-        // 初期化
         window.setBg = (c) => previewContainer.style.background = (c === 'transparent') ? '' : c;
         elements.bgColorPicker.addEventListener('input', (e) => setBg(e.target.value));
-        
-        // マイク開始ボタンのイベント
         elements.startBtn.addEventListener('click', initAudio);
 
         window.onload = async () => {
@@ -387,7 +377,6 @@
                     if(s.bg) setBg(s.bg);
                 } catch(e) {}
             }
-
             const labelMap = { 'sensitivity': 'sensVal', 'threshold': 'threshVal', 'jumpStrength': 'jumpVal' };
             Object.keys(labelMap).forEach(key => {
                 const input = document.getElementById(key);
@@ -411,7 +400,11 @@
             alert("設定を保存しました");
         });
 
-        function animate() { updateState(); drawCharacter(); requestAnimationFrame(animate); }
+        function animate() { 
+            updateState(); 
+            drawCharacter(); 
+            animationFrameId = requestAnimationFrame(animate); 
+        }
     </script>
 </body>
 </html>
