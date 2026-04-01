@@ -3,229 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNGTuber Engine - Step 5.1 (Hotkeys)</title>
+    <title>PNGTuber Engine - Step 6 (Fixed & Centered)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-            overflow: hidden;
-            display: flex;
-            flex-direction: row;
-            height: 100vh;
-            margin: 0;
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        body { background-color: #121212; color: #e0e0e0; overflow: hidden; display: flex; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
+        #preview-container { 
+            flex: 1; display: flex; align-items: center; justify-content: center; position: relative; background-color: #1a1a1a;
+            background-image: linear-gradient(45deg, #222 25%, transparent 25%), linear-gradient(-45deg, #222 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #222 75%), linear-gradient(-45deg, transparent 75%, #222 75%);
+            background-size: 20px 20px; transition: all 0.3s ease; cursor: grab;
         }
-        #preview-container {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            background-color: #1a1a1a;
-            background-image: 
-                linear-gradient(45deg, #222 25%, transparent 25%), 
-                linear-gradient(-45deg, #222 25%, transparent 25%), 
-                linear-gradient(45deg, transparent 75%, #222 75%), 
-                linear-gradient(-45deg, transparent 75%, #222 75%);
-            background-size: 20px 20px;
-            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        canvas {
-            max-width: 100%;
-            max-height: 100%;
-            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
-        }
-        .sidebar {
-            width: 340px;
-            background: #1e1e1e;
-            border-left: 1px solid #333;
-            padding: 24px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            z-index: 20;
-            box-shadow: -5px 0 15px rgba(0,0,0,0.2);
-            transition: transform 0.3s ease, margin-right 0.3s ease;
-        }
-        .sidebar.hidden-panel {
-            transform: translateX(100%);
-            margin-right: -340px;
-        }
-        .mic-meter-container {
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            overflow: hidden;
-            position: relative;
-        }
-        #mic-meter-fill {
-            height: 100%;
-            width: 0%;
-            background: linear-gradient(90deg, #3b82f6, #10b981);
-            transition: width 0.05s ease-out;
-        }
-        .threshold-line {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #ef4444;
-            z-index: 5;
-        }
-        input[type="range"] {
-            accent-color: #3b82f6;
-            height: 6px;
-        }
-        .file-input-label {
-            @apply flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg p-2 cursor-pointer hover:border-blue-500 transition text-[10px] text-gray-400;
-        }
-        .file-input-label.has-image {
-            @apply border-blue-500 text-blue-400 bg-blue-900/10;
-        }
-        #ui-toggle-btn {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            z-index: 30;
-            background: rgba(30, 30, 30, 0.8);
-            border: 1px solid #444;
-            color: #fff;
-            padding: 8px;
-            border-radius: 50%;
-            cursor: pointer;
-            backdrop-filter: blur(4px);
-            transition: opacity 0.3s;
-        }
-        #ui-toggle-btn:hover {
-            background: #3b82f6;
-            border-color: #3b82f6;
-        }
-        .set-tab {
-            @apply flex-1 py-2 text-xs font-bold rounded-lg transition-all;
-        }
-        .set-tab.active {
-            @apply bg-blue-600 text-white shadow-inner;
-        }
-        .set-tab.inactive {
-            @apply bg-gray-800 text-gray-500 hover:bg-gray-700;
-        }
+        #preview-container:active { cursor: grabbing; }
+        canvas { max-width: 100%; max-height: 100%; filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3)); }
+        .sidebar { width: 340px; background: #1e1e1e; border-left: 1px solid #333; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; z-index: 20; transition: transform 0.3s ease, margin-right 0.3s ease; }
+        .sidebar.hidden-panel { transform: translateX(100%); margin-right: -340px; }
+        .mic-meter-container { height: 8px; background: #333; border-radius: 4px; overflow: hidden; position: relative; }
+        #mic-meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #3b82f6, #10b981); transition: width 0.05s ease-out; }
+        .threshold-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 5; }
+        .file-input-label { @apply flex flex-col items-center justify-center border-2 border-dashed border-gray-600 rounded-lg p-2 cursor-pointer hover:border-blue-500 transition text-[10px] text-gray-400; }
+        .file-input-label.has-image { @apply border-blue-500 text-blue-400 bg-blue-900/10; }
+        #ui-toggle-btn { position: absolute; top: 20px; right: 20px; z-index: 30; background: rgba(30, 30, 30, 0.8); border: 1px solid #444; color: #fff; padding: 8px; border-radius: 50%; cursor: pointer; backdrop-filter: blur(4px); opacity: 0.3; }
+        #ui-toggle-btn:hover { opacity: 1; background: #3b82f6; }
+        .set-tab { @apply flex-1 py-2 text-xs font-bold rounded-lg transition-all; }
+        .set-tab.active { @apply bg-blue-600 text-white shadow-inner; }
+        .set-tab.inactive { @apply bg-gray-800 text-gray-500 hover:bg-gray-700; }
     </style>
 </head>
 <body>
 
     <div id="preview-container">
-        <button id="ui-toggle-btn" title="パネルを表示/非表示 (H)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
-        </button>
+        <button id="ui-toggle-btn" title="UI Toggle (H / Esc)">⚙️</button>
         <canvas id="mainCanvas"></canvas>
     </div>
 
     <div id="sidebar" class="sidebar">
         <header class="flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-bold text-white flex items-center gap-2">
-                    <span class="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></span>
-                    PNGTuber
-                </h1>
-                <p class="text-[10px] text-gray-500">v0.5.1 - Shortcut Support</p>
+                <h1 class="text-xl font-bold text-white flex items-center gap-2">PNGTuber Engine</h1>
+                <p class="text-[10px] text-gray-500">v0.6 - Fixed & Centered</p>
             </div>
-            <button id="hide-panel-btn" class="text-gray-500 hover:text-white transition">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-            </button>
+            <button id="hide-panel-btn" class="text-gray-500 hover:text-white transition">CLOSE</button>
         </header>
         
-        <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl transition shadow-lg flex items-center justify-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" x2="12" y1="19" y2="22"/></svg>
-            マイクを開始
-        </button>
+        <button id="startBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition shadow-lg">マイクを開始</button>
 
-        <!-- セット切り替えタブ -->
         <section class="space-y-2">
-            <h2 class="text-xs font-semibold text-gray-400">画像セット切り替え <span class="text-[9px] text-gray-600">(Key: 1, 2)</span></h2>
+            <h2 class="text-xs font-semibold text-gray-400">画像セット切り替え (Key: 1, 2)</h2>
             <div class="flex gap-2 p-1 bg-black/20 rounded-xl">
                 <button id="set1Btn" class="set-tab active">SET 1</button>
                 <button id="set2Btn" class="set-tab inactive">SET 2</button>
             </div>
         </section>
 
-        <!-- オーディオ設定 -->
         <section class="space-y-4 border-t border-gray-800 pt-4">
-            <div class="flex justify-between items-end">
-                <h2 class="text-sm font-semibold text-gray-300">オーディオ設定</h2>
-                <span id="volDisplay" class="text-[10px] font-mono text-gray-500">Vol: 0</span>
-            </div>
-            <div class="mic-meter-container">
-                <div id="mic-meter-fill"></div>
-                <div id="threshold-marker" class="threshold-line"></div>
-            </div>
+            <div class="flex justify-between items-end"><h2 class="text-sm font-semibold text-gray-300">オーディオ設定</h2><span id="volDisplay" class="text-[10px] font-mono text-gray-500">0</span></div>
+            <div class="mic-meter-container"><div id="mic-meter-fill"></div><div id="threshold-marker" class="threshold-line"></div></div>
             <div class="space-y-3">
-                <div>
-                    <div class="flex justify-between text-[10px] mb-1 text-gray-400">
-                        <label>感度 (Sensitivity)</label>
-                        <span id="sensVal">1.5</span>
-                    </div>
-                    <input type="range" id="sensitivity" min="0.1" max="5" step="0.1" value="1.5" class="w-full">
-                </div>
-                <div>
-                    <div class="flex justify-between text-[10px] mb-1 text-gray-400">
-                        <label>しきい値 (Threshold)</label>
-                        <span id="threshVal">10</span>
-                    </div>
-                    <input type="range" id="threshold" min="0" max="100" step="1" value="10" class="w-full">
-                </div>
+                <div><label class="text-[10px] text-gray-400 flex justify-between">感度 <span id="sensVal">1.5</span></label>
+                <input type="range" id="sensitivity" min="0.1" max="5" step="0.1" value="1.5" class="w-full"></div>
+                <div><label class="text-[10px] text-gray-400 flex justify-between">しきい値 <span id="threshVal">10</span></label>
+                <input type="range" id="threshold" min="0" max="100" step="1" value="10" class="w-full"></div>
             </div>
         </section>
 
-        <!-- 画像スロット -->
         <section class="space-y-3 border-t border-gray-800 pt-4">
             <h2 class="text-sm font-semibold text-gray-300">画像設定 (<span id="activeSetLabel" class="text-blue-400">Set 1</span>)</h2>
             <div class="grid grid-cols-2 gap-2">
-                <label id="labelIdle" class="file-input-label">
-                    <span>Idle</span>
-                    <input type="file" id="imgIdle" accept="image/*" class="hidden">
-                </label>
-                <label id="labelBlink" class="file-input-label">
-                    <span>Blink</span>
-                    <input type="file" id="imgBlink" accept="image/*" class="hidden">
-                </label>
-                <label id="labelTalk" class="file-input-label">
-                    <span>Talk</span>
-                    <input type="file" id="imgTalk" accept="image/*" class="hidden">
-                </label>
-                <label id="labelTalkBlink" class="file-input-label">
-                    <span>T-Blink</span>
-                    <input type="file" id="imgTalkBlink" accept="image/*" class="hidden">
-                </label>
-            </div>
-            <button id="resetSetBtn" class="w-full text-[10px] text-gray-500 hover:text-white transition">このセットをリセット</button>
-        </section>
-
-        <!-- ビジュアル設定 -->
-        <section class="space-y-4 border-t border-gray-800 pt-4">
-            <h2 class="text-sm font-semibold text-gray-300">表示・アニメーション</h2>
-            <div>
-                <label class="text-[10px] text-gray-400 block mb-1">背景色</label>
-                <div class="flex gap-2">
-                    <button class="bg-transparent border border-gray-600 rounded px-2 py-1 text-[10px]" onclick="setBg('transparent')">格子</button>
-                    <button class="bg-green-600 rounded px-2 py-1 text-[10px] text-white" onclick="setBg('#00ff00')">緑</button>
-                    <button class="bg-blue-600 rounded px-2 py-1 text-[10px] text-white" onclick="setBg('#0000ff')">青</button>
-                    <input type="color" id="bgColorPicker" class="w-8 h-6 bg-transparent cursor-pointer">
-                </div>
-            </div>
-            <div>
-                <div class="flex justify-between text-[10px] mb-1 text-gray-400">
-                    <label>ジャンプ強度</label>
-                    <span id="jumpVal">1.0</span>
-                </div>
-                <input type="range" id="jumpStrength" min="0" max="3" step="0.1" value="1.0" class="w-full">
+                <label id="labelIdle" class="file-input-label"><span>Idle</span><input type="file" id="imgIdle" accept="image/*" class="hidden"></label>
+                <label id="labelBlink" class="file-input-label"><span>Blink</span><input type="file" id="imgBlink" accept="image/*" class="hidden"></label>
+                <label id="labelTalk" class="file-input-label"><span>Talk</span><input type="file" id="imgTalk" accept="image/*" class="hidden"></label>
+                <label id="labelTalkBlink" class="file-input-label"><span>T-Blink</span><input type="file" id="imgTalkBlink" accept="image/*" class="hidden"></label>
             </div>
         </section>
 
-        <footer class="mt-auto pt-4 text-center border-t border-gray-800">
+        <section class="space-y-4 border-t border-gray-800 pt-4 text-[10px]">
+            <h2 class="text-sm font-semibold text-gray-300">表示設定</h2>
+            <div class="flex gap-2">
+                <button class="bg-gray-700 px-2 py-1 rounded" onclick="setBg('transparent')">格子</button>
+                <button class="bg-green-600 px-2 py-1 rounded text-white" onclick="setBg('#00ff00')">緑</button>
+                <input type="color" id="bgColorPicker" class="bg-transparent w-8 h-6">
+            </div>
+            <div><label class="text-gray-400 flex justify-between">ジャンプ強度 <span id="jumpVal">1.0</span></label>
+            <input type="range" id="jumpStrength" min="0" max="3" step="0.1" value="1.0" class="w-full"></div>
+        </section>
+
+        <footer class="mt-auto pt-4 text-center border-t border-gray-800 space-y-2">
             <button id="saveSettings" class="text-xs text-blue-400 hover:underline">設定を保存</button>
+            <p class="text-[9px] text-gray-600 italic">Drag character to move it</p>
         </footer>
     </div>
 
@@ -235,7 +98,6 @@
         const previewContainer = document.getElementById('preview-container');
         const sidebar = document.getElementById('sidebar');
         
-        // UI Elements
         const elements = {
             startBtn: document.getElementById('startBtn'),
             volDisplay: document.getElementById('volDisplay'),
@@ -246,271 +108,226 @@
             threshMarker: document.getElementById('threshold-marker'),
             bgColorPicker: document.getElementById('bgColorPicker'),
             saveBtn: document.getElementById('saveSettings'),
-            resetSetBtn: document.getElementById('resetSetBtn'),
             uiToggleBtn: document.getElementById('ui-toggle-btn'),
             hidePanelBtn: document.getElementById('hide-panel-btn'),
             set1Btn: document.getElementById('set1Btn'),
-            set2Btn: document.getElementById('set2Btn'),
-            activeSetLabel: document.getElementById('activeSetLabel')
+            set2Btn: document.getElementById('set2Btn')
         };
         
-        canvas.width = 800;
-        canvas.height = 800;
+        canvas.width = 1000; canvas.height = 1000;
 
         let audioContext, analyser, dataArray;
-        let isRunning = false;
-        let isUIVisible = true;
-        
-        // App State
+        let isRunning = false, isUIVisible = true;
         let currentSetId = 1;
-        let isTalking = false;
-        let isBlinking = false;
-        let blinkTimer = 0;
-        let jumpOffset = 0;
-        let currentVolume = 0;
+        let isTalking = false, isBlinking = false, blinkTimer = 0;
+        
+        // 物理・アニメーションパラメータ
+        let smoothVolume = 0;
+        let jumpY = 0;
+        
+        // キャラクターの座標初期値（キャンバスの中央付近に調整）
+        let charX = 500; 
+        let charY = 700; // 足元が中央より少し下にくるように配置
+        let isDragging = false;
 
-        // Image Storage for 2 Sets
-        const imageSets = {
-            1: { idle: null, blink: null, talk: null, talkblink: null },
-            2: { idle: null, blink: null, talk: null, talkblink: null }
-        };
+        const imageSets = { 1: {}, 2: {} };
 
-        // 1. セット切り替えロジック
+        // 1. ドラッグ移動の実装
+        previewContainer.addEventListener('mousedown', (e) => { isDragging = true; });
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                charX = (e.clientX - rect.left) * scaleX;
+                charY = (e.clientY - rect.top) * scaleY;
+            }
+        });
+        window.addEventListener('mouseup', () => { isDragging = false; });
+
+        // 2. セット切り替え・UI管理
         function switchSet(id) {
             currentSetId = id;
-            
-            // UI更新
             elements.set1Btn.className = `set-tab ${id === 1 ? 'active' : 'inactive'}`;
             elements.set2Btn.className = `set-tab ${id === 2 ? 'active' : 'inactive'}`;
-            elements.activeSetLabel.innerText = `Set ${id}`;
-            
-            // アップロードラベルのハイライト更新
+            document.getElementById('activeSetLabel').innerText = `Set ${id}`;
             updateSlotUI();
         }
-
         elements.set1Btn.addEventListener('click', () => switchSet(1));
         elements.set2Btn.addEventListener('click', () => switchSet(2));
 
         function updateSlotUI() {
-            const currentImages = imageSets[currentSetId];
-            ['Idle', 'Blink', 'Talk', 'TalkBlink'].forEach(key => {
-                const label = document.getElementById('label' + key);
-                if (currentImages[key.toLowerCase()]) {
-                    label.classList.add('has-image');
-                } else {
-                    label.classList.remove('has-image');
+            ['Idle', 'Blink', 'Talk', 'TalkBlink'].forEach(k => {
+                const el = document.getElementById('label' + k);
+                if (el) {
+                    imageSets[currentSetId][k.toLowerCase()] ? el.classList.add('has-image') : el.classList.remove('has-image');
                 }
             });
         }
 
-        // 2. UI表示切り替え & ショートカット
         function toggleUI() {
             isUIVisible = !isUIVisible;
-            if (isUIVisible) {
-                sidebar.classList.remove('hidden-panel');
-                elements.uiToggleBtn.style.opacity = '0.3';
-            } else {
-                sidebar.classList.add('hidden-panel');
-                elements.uiToggleBtn.style.opacity = '1';
-            }
+            sidebar.classList.toggle('hidden-panel', !isUIVisible);
+            elements.uiToggleBtn.style.opacity = isUIVisible ? '0.3' : '1';
         }
         elements.uiToggleBtn.addEventListener('click', toggleUI);
         elements.hidePanelBtn.addEventListener('click', toggleUI);
-
-        // キーボードショートカット設定
         window.addEventListener('keydown', (e) => {
-            const key = e.key.toLowerCase();
-            
-            // UI表示切り替え (H or Escape)
-            if (key === 'h' || e.key === 'Escape') {
-                toggleUI();
-            }
-            
-            // セット切り替え (1 or 2)
-            if (key === '1') {
-                switchSet(1);
-            } else if (key === '2') {
-                switchSet(2);
-            }
+            if (e.key.toLowerCase() === 'h' || e.key === 'Escape') toggleUI();
+            if (e.key === '1') switchSet(1);
+            if (e.key === '2') switchSet(2);
         });
 
-        // 3. 背景 & 設定
-        window.setBg = (color) => {
-            if (color === 'transparent') {
-                previewContainer.style.background = '';
-            } else {
-                previewContainer.style.background = color;
-            }
-        };
-        elements.bgColorPicker.addEventListener('input', (e) => setBg(e.target.value));
-
-        function saveSettings() {
-            const settings = {
-                sensitivity: elements.sensitivityInput.value,
-                threshold: elements.thresholdInput.value,
-                jumpStrength: elements.jumpStrengthInput.value,
-                bgColor: previewContainer.style.background,
-                currentSetId: currentSetId
-            };
-            localStorage.setItem('pngtuber_settings_v5.1', JSON.stringify(settings));
-            alert("設定を保存しました。");
-        }
-
-        function loadSettings() {
-            const saved = localStorage.getItem('pngtuber_settings_v5.1');
-            if (saved) {
-                const s = JSON.parse(saved);
-                elements.sensitivityInput.value = s.sensitivity;
-                elements.thresholdInput.value = s.threshold;
-                elements.jumpStrengthInput.value = s.jumpStrength;
-                if (s.bgColor) setBg(s.bgColor);
-                switchSet(s.currentSetId || 1);
-                updateLabels();
-            }
-        }
-        elements.saveBtn.addEventListener('click', saveSettings);
-
-        function updateLabels() {
-            document.getElementById('sensVal').innerText = elements.sensitivityInput.value;
-            document.getElementById('threshVal').innerText = elements.thresholdInput.value;
-            document.getElementById('jumpVal').innerText = elements.jumpStrengthInput.value;
-            elements.threshMarker.style.left = elements.thresholdInput.value + '%';
-        }
-
-        ['sensitivity', 'threshold', 'jumpStrength'].forEach(id => {
-            elements[id + 'Input'].addEventListener('input', updateLabels);
-        });
-
-        // 4. マイク処理
+        // 3. 音声処理
         async function initAudio() {
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const source = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 256;
+                analyser = audioContext.createAnalyser(); analyser.fftSize = 256;
                 source.connect(analyser);
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
-                isRunning = true;
-                elements.startBtn.innerText = "ON AIR";
+                isRunning = true; elements.startBtn.innerText = "ON AIR";
                 elements.startBtn.classList.replace('bg-blue-600', 'bg-green-600');
                 animate();
-            } catch (err) {
-                alert("マイク許可が必要です");
-            }
+            } catch (err) { alert("マイク許可が必要です"); }
         }
 
         function updateState() {
             if (!isRunning) return;
-
             analyser.getByteFrequencyData(dataArray);
-            let sum = 0;
-            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-            currentVolume = Math.min(100, (sum / dataArray.length) * 1.5);
+            let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            let rawVol = Math.min(100, (sum / dataArray.length) * 1.5);
             
-            elements.volDisplay.innerText = `Vol: ${Math.floor(currentVolume)}`;
-            elements.micMeter.style.width = currentVolume + '%';
-            elements.micMeter.style.backgroundColor = currentVolume > elements.thresholdInput.value ? '#10b981' : '#3b82f6';
+            smoothVolume = smoothVolume * 0.85 + rawVol * 0.15;
+            
+            elements.volDisplay.innerText = Math.floor(rawVol);
+            elements.micMeter.style.width = rawVol + '%';
+            elements.micMeter.style.backgroundColor = rawVol > elements.thresholdInput.value ? '#10b981' : '#3b82f6';
 
             const threshold = parseFloat(elements.thresholdInput.value);
-            isTalking = currentVolume > threshold;
+            isTalking = smoothVolume > threshold;
 
             if (isTalking) {
                 const jumpPower = parseFloat(elements.jumpStrengthInput.value);
-                jumpOffset = Math.sin(Date.now() * 0.015) * (currentVolume - threshold) * 0.6 * jumpPower;
+                jumpY = Math.sin(Date.now() * 0.02) * (smoothVolume - threshold) * 0.6 * jumpPower;
             } else {
-                jumpOffset *= 0.85;
+                jumpY *= 0.8;
             }
 
             blinkTimer--;
-            if (blinkTimer <= 0) {
-                isBlinking = !isBlinking;
-                blinkTimer = isBlinking ? 8 : (Math.random() * 250 + 120);
-            }
+            if (blinkTimer <= 0) { isBlinking = !isBlinking; blinkTimer = isBlinking ? 8 : (Math.random() * 250 + 120); }
         }
 
-        // 5. 描画
+        // 4. 描画
         function drawCharacter() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const centerX = canvas.width / 2;
-            const centerY = canvas.height / 2 + 100 - jumpOffset;
-
+            
             const currentImages = imageSets[currentSetId];
-            let activeImage = null;
-            if (isTalking) {
-                activeImage = isBlinking ? (currentImages.talkblink || currentImages.talk) : currentImages.talk;
-            } else {
-                activeImage = isBlinking ? currentImages.blink : currentImages.idle;
-            }
+            let activeImage = isTalking ? (isBlinking ? (currentImages.talkblink || currentImages.talk) : currentImages.talk) : (isBlinking ? currentImages.blink : currentImages.idle);
+
+            let squash = 1 + (jumpY * 0.001); 
+            let stretch = 1 - (jumpY * 0.001);
+
+            ctx.save();
+            ctx.translate(charX, charY - jumpY);
+            ctx.scale(squash, stretch);
 
             if (activeImage) {
-                const scale = 550 / Math.max(activeImage.width, activeImage.height);
-                const w = activeImage.width * scale;
-                const h = activeImage.height * scale;
-                ctx.drawImage(activeImage, centerX - w/2, centerY - h, w, h);
+                const scale = 600 / Math.max(activeImage.width, activeImage.height);
+                const w = activeImage.width * scale, h = activeImage.height * scale;
+                ctx.drawImage(activeImage, -w/2, -h, w, h);
             } else {
-                drawSDOtaku1(centerX, centerY, isTalking, isBlinking);
-            }
-        }
-
-        // Fallback: SDオタク1
-        function drawSDOtaku1(x, y, talk, blink) {
-            ctx.save();
-            ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#000';
-            ctx.fillStyle = '#000'; ctx.fillRect(x - 40, y - 60, 80, 60); // Slacks
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 45, y - 140, 90, 80); ctx.fill(); ctx.stroke(); // T-shirt
-            ctx.beginPath(); ctx.arc(x, y - 200, 75, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // Head
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 78, Math.PI, 0); ctx.lineTo(x + 78, y - 180); ctx.lineTo(x - 78, y - 180); ctx.fill(); // Hair
-            if (blink) {
-                ctx.beginPath(); ctx.moveTo(x - 35, y - 210); ctx.lineTo(x - 15, y - 210); ctx.moveTo(x + 15, y - 210); ctx.lineTo(x + 35, y - 210); ctx.stroke();
-            } else {
-                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - 25, y - 215, 6, 0, Math.PI * 2); ctx.arc(x + 25, y - 215, 6, 0, Math.PI * 2); ctx.fill();
-            }
-            if (talk) {
-                ctx.beginPath(); ctx.moveTo(x - 20, y - 185); ctx.quadraticCurveTo(x, y - 145, x + 20, y - 185); ctx.closePath(); ctx.stroke();
-            } else {
-                ctx.beginPath(); ctx.moveTo(x - 12, y - 180); ctx.lineTo(x + 12, y - 180); ctx.stroke();
+                drawSDOtaku1(0, 0, isTalking, isBlinking);
             }
             ctx.restore();
         }
 
-        // 画像処理
-        const setupFile = (id, key) => {
-            const input = document.getElementById(id);
+        // デフォルトキャラ: SDオタク1
+        function drawSDOtaku1(x, y, talk, blink) {
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
+            
+            ctx.fillStyle = '#000'; ctx.fillRect(x - 50, y - 40, 100, 40); // スラックス
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 55, y - 100, 110, 60); ctx.fill(); ctx.stroke(); // Tシャツ
+            
+            ctx.beginPath(); ctx.arc(x, y - 200, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // 頭部
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 103, Math.PI, 0); ctx.lineTo(x + 103, y - 180); ctx.lineTo(x - 103, y - 180); ctx.fill(); // 髪
+            
+            if (blink) { 
+                ctx.beginPath(); ctx.moveTo(x - 45, y - 210); ctx.lineTo(x - 15, y - 210); ctx.moveTo(x + 15, y - 210); ctx.lineTo(x + 45, y - 210); ctx.stroke();
+            } else { 
+                ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - 30, y - 220, 8, 0, Math.PI * 2); ctx.arc(x + 30, y - 220, 8, 0, Math.PI * 2); ctx.fill(); 
+            }
+            
+            if (talk) { 
+                ctx.beginPath(); ctx.moveTo(x - 30, y - 180); ctx.quadraticCurveTo(x, y - 120, x + 30, y - 180); ctx.closePath(); ctx.stroke(); 
+            } else { 
+                ctx.beginPath(); ctx.moveTo(x - 15, y - 170); ctx.lineTo(x + 15, y - 170); ctx.stroke(); 
+            }
+        }
+
+        // ファイル処理
+        ['Idle', 'Blink', 'Talk', 'TalkBlink'].forEach(k => {
+            const input = document.getElementById('img' + k);
             if (input) {
                 input.addEventListener('change', (e) => {
                     const file = e.target.files[0];
                     if (file) {
-                        const img = new Image();
-                        img.src = URL.createObjectURL(file);
-                        img.onload = () => {
-                            imageSets[currentSetId][key] = img;
-                            updateSlotUI();
-                        };
+                        const img = new Image(); img.src = URL.createObjectURL(file);
+                        img.onload = () => { imageSets[currentSetId][k.toLowerCase()] = img; updateSlotUI(); };
                     }
                 });
             }
-        };
-        ['imgIdle', 'imgBlink', 'imgTalk', 'imgTalkBlink'].forEach(id => setupFile(id, id.replace('img', '').toLowerCase()));
-
-        elements.resetSetBtn.addEventListener('click', () => {
-            imageSets[currentSetId] = { idle: null, blink: null, talk: null, talkblink: null };
-            updateSlotUI();
         });
 
-        function animate() {
-            updateState();
-            drawCharacter();
-            requestAnimationFrame(animate);
-        }
-
+        function animate() { updateState(); drawCharacter(); requestAnimationFrame(animate); }
+        window.setBg = (c) => previewContainer.style.background = (c === 'transparent') ? '' : c;
+        elements.bgColorPicker.addEventListener('input', (e) => setBg(e.target.value));
         elements.startBtn.addEventListener('click', () => { if (!audioContext) initAudio(); });
-        
+
         window.onload = () => {
-            loadSettings();
-            updateLabels();
-            elements.uiToggleBtn.style.opacity = '0.3';
+            // 保存データの読み込み
+            const saved = localStorage.getItem('pngtuber_v6_settings');
+            if(saved) {
+                try {
+                    const s = JSON.parse(saved);
+                    elements.sensitivityInput.value = s.sens || 1.5;
+                    elements.thresholdInput.value = s.thresh || 10;
+                    elements.jumpStrengthInput.value = s.jump || 1.0;
+                    if(s.bg) setBg(s.bg);
+                } catch(e) {}
+            }
+
+            // ラベル同期の修正（IDの不一致を解決）
+            const labelMap = {
+                'sensitivity': 'sensVal',
+                'threshold': 'threshVal',
+                'jumpStrength': 'jumpVal'
+            };
+
+            Object.keys(labelMap).forEach(key => {
+                const input = document.getElementById(key);
+                const label = document.getElementById(labelMap[key]);
+                if (input && label) {
+                    // 初期値反映
+                    label.innerText = input.value;
+                    if(key === 'threshold') elements.threshMarker.style.left = input.value + '%';
+
+                    input.addEventListener('input', () => {
+                        label.innerText = input.value;
+                        if(key === 'threshold') elements.threshMarker.style.left = input.value + '%';
+                    });
+                }
+            });
         };
+
+        elements.saveBtn.addEventListener('click', () => {
+            localStorage.setItem('pngtuber_v6_settings', JSON.stringify({
+                sens: elements.sensitivityInput.value, thresh: elements.thresholdInput.value,
+                jump: elements.jumpStrengthInput.value, bg: previewContainer.style.background
+            }));
+            alert("保存しました");
+        });
     </script>
 </body>
 </html>
