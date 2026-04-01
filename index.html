@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PNGTuber Engine - Step 7 (IndexedDB Save)</title>
+    <title>PNGTuber Engine - Step 7 (Fixed Audio)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body { background-color: #121212; color: #e0e0e0; overflow: hidden; display: flex; height: 100vh; margin: 0; font-family: 'Inter', sans-serif; }
@@ -39,7 +39,7 @@
         <header class="flex justify-between items-center">
             <div>
                 <h1 class="text-xl font-bold text-white flex items-center gap-2">PNGTuber Engine</h1>
-                <p class="text-[10px] text-gray-500">v0.7 - Browser Storage Support</p>
+                <p class="text-[10px] text-gray-500">v0.7.1 - Audio Fix</p>
             </div>
             <button id="hide-panel-btn" class="text-gray-500 hover:text-white transition">CLOSE</button>
         </header>
@@ -56,7 +56,10 @@
 
         <section class="space-y-4 border-t border-gray-800 pt-4">
             <div class="flex justify-between items-end"><h2 class="text-sm font-semibold text-gray-300">オーディオ設定</h2><span id="volDisplay" class="text-[10px] font-mono text-gray-500">0</span></div>
-            <div class="mic-meter-container"><div id="mic-meter-fill"></div><div id="threshold-marker" class="threshold-line"></div></div>
+            <div class="mic-meter-container">
+                <div id="mic-meter-fill"></div>
+                <div id="threshold-marker" class="threshold-line"></div>
+            </div>
             <div class="space-y-3">
                 <div><label class="text-[10px] text-gray-400 flex justify-between">感度 <span id="sensVal">1.5</span></label>
                 <input type="range" id="sensitivity" min="0.1" max="5" step="0.1" value="1.5" class="w-full"></div>
@@ -67,7 +70,6 @@
 
         <section class="space-y-3 border-t border-gray-800 pt-4">
             <h2 class="text-sm font-semibold text-gray-300">画像設定 (<span id="activeSetLabel" class="text-blue-400">Set 1</span>)</h2>
-            <p class="text-[9px] text-gray-500 mt-[-8px]">※画像はブラウザに自動保存されます</p>
             <div class="grid grid-cols-2 gap-2">
                 <label id="labelIdle" class="file-input-label"><span>Idle</span><input type="file" id="imgIdle" accept="image/*" class="hidden"></label>
                 <label id="labelBlink" class="file-input-label"><span>Blink</span><input type="file" id="imgBlink" accept="image/*" class="hidden"></label>
@@ -90,7 +92,6 @@
 
         <footer class="mt-auto pt-4 text-center border-t border-gray-800 space-y-2">
             <button id="saveSettings" class="text-xs text-blue-400 hover:underline">設定を保存</button>
-            <p class="text-[9px] text-gray-600 italic">Images are saved in IndexedDB</p>
         </footer>
     </div>
 
@@ -175,7 +176,7 @@
 
         const imageSets = { 1: {}, 2: {} };
 
-        // 1. ドラッグ移動
+        // ドラッグ移動
         previewContainer.addEventListener('mousedown', (e) => { isDragging = true; });
         window.addEventListener('mousemove', (e) => {
             if (isDragging) {
@@ -188,7 +189,7 @@
         });
         window.addEventListener('mouseup', () => { isDragging = false; });
 
-        // 2. セット管理
+        // セット管理
         function switchSet(id) {
             currentSetId = id;
             elements.set1Btn.className = `set-tab ${id === 1 ? 'active' : 'inactive'}`;
@@ -223,33 +224,66 @@
             if (key === '2') switchSet(2);
         });
 
-        // 3. 音声処理
+        // --- 音声処理の修正 ---
         async function initAudio() {
+            // すでにコンテキストがある場合はレジュームを試みる
+            if (audioContext) {
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+                return;
+            }
+
             try {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // ブラウザの制約により、ここでもresumeが必要な場合がある
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                }
+
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 const source = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser(); analyser.fftSize = 256;
+                
+                analyser = audioContext.createAnalyser(); 
+                analyser.fftSize = 256;
                 source.connect(analyser);
+                
                 dataArray = new Uint8Array(analyser.frequencyBinCount);
-                isRunning = true; elements.startBtn.innerText = "ON AIR";
+                isRunning = true; 
+                
+                elements.startBtn.innerText = "ON AIR";
                 elements.startBtn.classList.replace('bg-blue-600', 'bg-green-600');
+                
+                // ループ開始
                 animate();
-            } catch (err) { alert("マイク許可が必要です"); }
+            } catch (err) { 
+                console.error("マイクの取得に失敗:", err);
+                alert("マイク許可が必要です。ブラウザのアドレスバー横の鍵アイコンからマイクが許可されているか確認してください。"); 
+            }
         }
 
         function updateState() {
-            if (!isRunning) return;
+            if (!isRunning || !analyser) return;
+
             analyser.getByteFrequencyData(dataArray);
-            let sum = 0; for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            let sum = 0; 
+            for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+            
+            // 0-100の範囲でボリュームを計算
             let rawVol = Math.min(100, (sum / dataArray.length) * 1.5);
+            
+            // なめらかに数値を動かす
             smoothVolume = smoothVolume * 0.85 + rawVol * 0.15;
             
+            // UI更新
             elements.volDisplay.innerText = Math.floor(rawVol);
             elements.micMeter.style.width = rawVol + '%';
-            elements.micMeter.style.backgroundColor = rawVol > elements.thresholdInput.value ? '#10b981' : '#3b82f6';
-
+            
             const threshold = parseFloat(elements.thresholdInput.value);
+            elements.micMeter.style.backgroundColor = rawVol > threshold ? '#10b981' : '#3b82f6';
+
+            // 口パク判定
             isTalking = smoothVolume > threshold;
 
             if (isTalking) {
@@ -263,7 +297,7 @@
             if (blinkTimer <= 0) { isBlinking = !isBlinking; blinkTimer = isBlinking ? 8 : (Math.random() * 250 + 120); }
         }
 
-        // 4. 描画
+        // 描画
         function drawCharacter() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             const currentImages = imageSets[currentSetId];
@@ -288,17 +322,17 @@
 
         function drawSDOtaku1(x, y, talk, blink) {
             ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 5; ctx.strokeStyle = '#000';
-            ctx.fillStyle = '#000'; ctx.fillRect(x - 50, y - 40, 100, 40); // Slacks
-            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 55, y - 100, 110, 60); ctx.fill(); ctx.stroke(); // T-shirt
-            ctx.beginPath(); ctx.arc(x, y - 200, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); // Head
-            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 103, Math.PI, 0); ctx.lineTo(x + 103, y - 180); ctx.lineTo(x - 103, y - 180); ctx.fill(); // Hair
+            ctx.fillStyle = '#000'; ctx.fillRect(x - 50, y - 40, 100, 40); 
+            ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.rect(x - 55, y - 100, 110, 60); ctx.fill(); ctx.stroke(); 
+            ctx.beginPath(); ctx.arc(x, y - 200, 100, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); 
+            ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x, y - 205, 103, Math.PI, 0); ctx.lineTo(x + 103, y - 180); ctx.lineTo(x - 103, y - 180); ctx.fill(); 
             if (blink) { ctx.beginPath(); ctx.moveTo(x - 45, y - 210); ctx.lineTo(x - 15, y - 210); ctx.moveTo(x + 15, y - 210); ctx.lineTo(x + 45, y - 210); ctx.stroke(); } 
             else { ctx.fillStyle = '#000'; ctx.beginPath(); ctx.arc(x - 30, y - 220, 8, 0, Math.PI * 2); ctx.arc(x + 30, y - 220, 8, 0, Math.PI * 2); ctx.fill(); }
             if (talk) { ctx.beginPath(); ctx.moveTo(x - 30, y - 180); ctx.quadraticCurveTo(x, y - 120, x + 30, y - 180); ctx.closePath(); ctx.stroke(); } 
             else { ctx.beginPath(); ctx.moveTo(x - 15, y - 170); ctx.lineTo(x + 15, y - 170); ctx.stroke(); }
         }
 
-        // 5. 画像保存・読み込み処理
+        // 画像保存・読み込み
         async function loadAllImages() {
             for (let setIdx = 1; setIdx <= 2; setIdx++) {
                 for (const key of ['idle', 'blink', 'talk', 'talkblink']) {
@@ -319,9 +353,7 @@
             input.addEventListener('change', async (e) => {
                 const file = e.target.files[0];
                 if (file) {
-                    // IndexedDBへ保存
                     await saveImage(`set${currentSetId}_${k.toLowerCase()}`, file);
-                    // 画面へ反映
                     const img = new Image();
                     img.src = URL.createObjectURL(file);
                     img.onload = () => { imageSets[currentSetId][k.toLowerCase()] = img; updateSlotUI(); };
@@ -336,15 +368,15 @@
             }
         });
 
-        // 6. 初期化
+        // 初期化
         window.setBg = (c) => previewContainer.style.background = (c === 'transparent') ? '' : c;
         elements.bgColorPicker.addEventListener('input', (e) => setBg(e.target.value));
-        elements.startBtn.addEventListener('click', () => { if (!audioContext) initAudio(); });
+        
+        // マイク開始ボタンのイベント
+        elements.startBtn.addEventListener('click', initAudio);
 
         window.onload = async () => {
-            // ストレージから画像を読み込む
             await loadAllImages();
-
             const saved = localStorage.getItem('pngtuber_v7_settings');
             if(saved) {
                 try {
@@ -378,6 +410,8 @@
             }));
             alert("設定を保存しました");
         });
+
+        function animate() { updateState(); drawCharacter(); requestAnimationFrame(animate); }
     </script>
 </body>
 </html>
